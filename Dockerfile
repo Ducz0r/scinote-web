@@ -15,13 +15,17 @@ RUN wget -O- https://toolbelt.heroku.com/install-ubuntu.sh | sh
 
 # install gems
 COPY Gemfile* /tmp/
+COPY quill-rails /tmp/quill-rails
 WORKDIR /tmp
 RUN bundle install
+RUN rm -rf quill-rails
 
 # create app directory
 ENV APP_HOME /usr/src/app
 RUN mkdir $APP_HOME
 WORKDIR $APP_HOME
+RUN mkdir quill-rails
+RUN ln -s $(readlink -f quill-rails) /tmp
 
 # container user
 RUN groupadd scinote

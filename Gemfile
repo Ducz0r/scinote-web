@@ -63,8 +63,9 @@ gem 'delayed_job_active_record'
 gem 'devise-async'
 gem 'ruby-graphviz', '~> 1.2' # Graphviz for rails
 gem 'quill-rails', # Rich text editor
-    git: 'https://github.com/biosistemika/quill-rails.git',
-    ref: 'e765c04'
+    path: 'quill-rails'
+    #git: 'https://github.com/biosistemika/quill-rails.git',
+    #ref: 'e765c04'
 gem 'base62' # Used for smart annotations
 
 group :development, :test do
