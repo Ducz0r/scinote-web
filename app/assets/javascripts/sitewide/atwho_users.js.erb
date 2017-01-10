@@ -1,9 +1,145 @@
 (function() {
   'use strict';
 
-  $(document).on(
+  function initUsersAtWho(el, dataUrl, quill) {
+    var functionOverrides;
+    if (quill) {
+      functionOverrides = {
+        insert: function(content, $li) {
+          function replaceLastOccurence(str, match, repl) {
+            var n = str.lastIndexOf(match);
+            if (n >= 0 && n + match.length >= str.length) {
+              str = str.substring(0, n) + repl;
+            }
+            return str;
+          }
+
+          var range;
+
+          if (range = this._getRange()) {
+            var toReplace = this.at + this.query.text;
+            var prevEl = $(range.startContainer).prev();
+            var html = prevEl.html();
+            var data = $li.data('item-data');
+
+            this.query.el
+            .removeClass('atwho-query')
+            .addClass('atwho-inserted')
+            .html(content)
+            .attr('data-atwho-at-query', "" + data['atwho-at'] + this.query.text)
+            .attr('contenteditable', "false");
+
+            html = replaceLastOccurence(
+              html,
+              toReplace,
+              this.query.el[0].outerHTML
+            );
+            prevEl.html(html);
+          }
+        }
+      }
+    } else {
+      functionOverrides = {};
+    }
+
+    el.atwho({
+      at: '@',
+      callbacks: {
+        remoteFilter: function(query, callback) {
+          $.getJSON(
+            dataUrl,
+            {query: query},
+            function(data) {
+              callback(data.users);
+            }
+          );
+        },
+        sorter: function(query, items, _searchKey) {
+          // Sorting is already done on server-side
+          return items;
+        },
+        tplEval: function(_tpl, map) {
+          var res;
+          try {
+            res = '';
+            res += '<li class="atwho-li atwho-li-user" ';
+            res += 'data-id="' + map.id + '" ';
+            res += 'data-full-name="' + map.full_name + '">';
+            res += '<img src="' + map.img_url + '" class="avatar" />';
+            res += '<span data-val="full-name">';
+            res += map.full_name;
+            res += '</span>';
+            res += '<small>';
+            res += '&nbsp;';
+            res += '&#183;';
+            res += '&nbsp;';
+            res += '<span data-val="email">';
+            res += map.email;
+            res += '</span>';
+            res += '</small>';
+            res += '</li>';
+          } catch (_error) {
+            res = '';
+          }
+          return res;
+        },
+        highlighter: function(li, query) {
+          function highlight(el, sel, re) {
+            var prevVal = el.find(sel).html();
+            var newVal = prevVal.replace(re, '<strong>$&</strong>');
+            el.find(sel).html(newVal);
+          }
+
+          if (!query) {
+            return li;
+          }
+
+          var $li = $(li);
+          var re = new RegExp(query, 'gi');
+          highlight($li, '[data-val=full-name]', re);
+          highlight($li, '[data-val=email]', re);
+          return $li[0].outerHTML;
+        },
+        beforeInsert: function(value, li) {
+          var res = '';
+          res += '[@' + li.attr('data-full-name');
+          res += '~' + li.attr('data-id') + ']';
+          return res;
+        }
+      },
+      headerTpl:
+        '<div class="atwho-header-user">' +
+        '<div class="title"><%= I18n.t("atwho.users.title") %></div>' +
+        '<div class="help">' +
+        '<div>' +
+        '<strong><%= I18n.t("atwho.users.navigate_1") %></strong> ' +
+        '<%= I18n.t("atwho.users.navigate_2") %>' +
+        '</div>' +
+        '<div>' +
+        '<strong><%= I18n.t("atwho.users.confirm_1") %></strong> ' +
+        '<%= I18n.t("atwho.users.confirm_2") %>' +
+        '</div>' +
+        '<div>' +
+        '<strong><%= I18n.t("atwho.users.dismiss_1") %></strong> ' +
+        '<%= I18n.t("atwho.users.dismiss_2") %>' +
+        '</div>' +
+        '<div class="dismiss">' +
+        '<span class="glyphicon glyphicon-remove"></span>' +
+        '</div>' +
+        '</div>' +
+        '</div>',
+      limit: <%= Constants::ATWHO_SEARCH_LIMIT %>,
+      startsWithSpace: true,
+      acceptSpaceBar: true,
+      functionOverrides: functionOverrides
+    });
+  }
+
+  // Regular input[type=text] and textarea-s
+  $(document)
+  .on(
     'focus',
-    '[data-atwho-users-edit]',
+    '[data-atwho-text-users-edit]',
     function() {
       // Only initialize if URL is present and
       // atwho is not initialized yet
@@ -12,98 +148,42 @@
         _.isUndefined($(this).data('atwho'))
       ) {
         var dataUrl = $(document.body).attr('data-atwho-users-url');
+        initUsersAtWho($(this), dataUrl, false);
+      }
+    }
+  )
+  .on(
+    'focus',
+    '[data-atwho-quill-users-edit-container] .ql-editor',
+    function() {
+      // Only initialize if URL is present and
+      // atwho is not initialized yet
+      if (
+        $(document.body).is('[data-atwho-users-url]') &&
+        _.isUndefined($(this).data('atwho-initialized'))
+      ) {
+        var dataUrl = $(document.body).attr('data-atwho-users-url');
 
-        $(this)
-        .atwho({
-          at: '@',
-          callbacks: {
-            remoteFilter: function(query, callback) {
-              $.getJSON(
-                dataUrl,
-                {query: query},
-                function(data) {
-                  callback(data.users);
-                }
-              );
-            },
-            sorter: function(query, items, _searchKey) {
-              // Sorting is already done on server-side
-              return items;
-            },
-            tplEval: function(_tpl, map) {
-              var res;
-              try {
-                res = '';
-                res += '<li class="atwho-li atwho-li-user" ';
-                res += 'data-id="' + map.id + '" ';
-                res += 'data-full-name="' + map.full_name + '">';
-                res += '<img src="' + map.img_url + '" class="avatar" />';
-                res += '<span data-val="full-name">';
-                res += map.full_name;
-                res += '</span>';
-                res += '<small>';
-                res += '&nbsp;';
-                res += '&#183;';
-                res += '&nbsp;';
-                res += '<span data-val="email">';
-                res += map.email;
-                res += '</span>';
-                res += '</small>';
-                res += '</li>';
-              } catch (_error) {
-                res = '';
-              }
-              return res;
-            },
-            highlighter: function(li, query) {
-              function highlight(el, sel, re) {
-                var prevVal = el.find(sel).html();
-                var newVal = prevVal.replace(re, '<strong>$&</strong>');
-                el.find(sel).html(newVal);
+        /*$(this)
+          .closest('.editor.ql-container')
+          .data('quill')
+          .on(
+            'text-change', function(delta, oldDelta, source) {
+              if (_.isUndefined(delta) || _.isUndefined(oldDelta)) {
+                return;
               }
 
-              if (!query) {
-                return li;
-              }
+              if (
+                delta.ops.length &&
+                oldDelta.ops.length &&
+                delta.ops.length >= 2 &&
+                delta.ops[0].) {
 
-              var $li = $(li);
-              var re = new RegExp(query, 'gi');
-              highlight($li, '[data-val=full-name]', re);
-              highlight($li, '[data-val=email]', re);
-              return $li[0].outerHTML;
-            },
-            beforeInsert: function(value, li) {
-              var res = '';
-              res += '[@' + li.attr('data-full-name');
-              res += '~' + li.attr('data-id') + ']';
-              return res;
-            }
-          },
-          headerTpl:
-            '<div class="atwho-header-user">' +
-            '<div class="title"><%= I18n.t("atwho.users.title") %></div>' +
-            '<div class="help">' +
-            '<div>' +
-            '<strong><%= I18n.t("atwho.users.navigate_1") %></strong> ' +
-            '<%= I18n.t("atwho.users.navigate_2") %>' +
-            '</div>' +
-            '<div>' +
-            '<strong><%= I18n.t("atwho.users.confirm_1") %></strong> ' +
-            '<%= I18n.t("atwho.users.confirm_2") %>' +
-            '</div>' +
-            '<div>' +
-            '<strong><%= I18n.t("atwho.users.dismiss_1") %></strong> ' +
-            '<%= I18n.t("atwho.users.dismiss_2") %>' +
-            '</div>' +
-            '<div class="dismiss">' +
-            '<span class="glyphicon glyphicon-remove"></span>' +
-            '</div>' +
-            '</div>' +
-            '</div>',
-          limit: <%= Constants::ATWHO_SEARCH_LIMIT %>,
-          startsWithSpace: true,
-          acceptSpaceBar: true
-        });
+              }
+          });
+        */
+        $(this).data('atwho-initialized', true);
+        initUsersAtWho($(this), dataUrl, true);
       }
     }
   );
